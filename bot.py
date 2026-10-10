@@ -21,14 +21,7 @@ dp.include_router(router)
 def init_db():
     conn = sqlite3.connect("recipes.db")
     c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS recipes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        ingredients TEXT,
-        steps TEXT,
-        added_by TEXT,
-        is_favorite INTEGER DEFAULT 0
-    )""")
+    c.execute("CREATE TABLE IF NOT EXISTS recipes (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, ingredients TEXT, steps TEXT, added_by TEXT, is_favorite INTEGER DEFAULT 0)")
     conn.commit()
     conn.close()
 
@@ -40,20 +33,11 @@ class AddRecipe(StatesGroup):
     steps = State()
 
 def main_menu():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="➕ Добавить рецепт"), KeyboardButton(text="📋 Все рецепты")],
-            [KeyboardButton(text="🎲 Случайный рецепт"), KeyboardButton(text="⭐ Избранное")],
-        ],
-        resize_keyboard=True
-    )
+    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="➕ Добавить рецепт"), KeyboardButton(text="📋 Все рецепты")],[KeyboardButton(text="🎲 Случайный рецепт"), KeyboardButton(text="⭐ Избранное")]], resize_keyboard=True)
 
 @router.message(CommandStart())
 async def start(message: types.Message):
-    await message.answer(
-        "Привет! 💕\n\nЭто общий бот с рецептами Мооники.\nВы оба можете добавлять блюда и смотреть их.",
-        reply_markup=main_menu()
-    )
+    await message.answer("Привет! 💕\n\nЭто общий бот с рецептами Мооники.\nВы оба можете добавлять блюда и смотреть их.", reply_markup=main_menu())
 
 @router.message(F.text == "➕ Добавить рецепт")
 async def add_start(message: types.Message, state: FSMContext):
@@ -78,10 +62,7 @@ async def add_steps(message: types.Message, state: FSMContext):
     added_by = message.from_user.first_name or "Кто-то"
     conn = sqlite3.connect("recipes.db")
     c = conn.cursor()
-    c.execute(
-        "INSERT INTO recipes (name, ingredients, steps, added_by) VALUES (?, ?, ?, ?)",
-        (data["name"], data["ingredients"], message.text, added_by)
-    )
+    c.execute("INSERT INTO recipes (name, ingredients, steps, added_by) VALUES (?, ?, ?, ?)", (data["name"], data["ingredients"], message.text, added_by))
     conn.commit()
     conn.close()
     await state.clear()
@@ -106,36 +87,4 @@ async def list_recipes(message: types.Message):
 @router.callback_query(F.data.startswith("view:"))
 async def view_recipe(callback: types.CallbackQuery):
     rid = int(callback.data.split(":")[1])
-    conn = sqlite3.connect("recipes.db")
-    c = conn.cursor()
-    c.execute("SELECT name, ingredients, steps, added_by, is_favorite FROM recipes WHERE id = ?", (rid,))
-    row = c.fetchone()
-    conn.close()
-    if row:
-        fav = "⭐" if row[4] else ""
-        text = f"🍽 <b>{row[0]}</b> {fav}\n<i>Добавил(а): {row[3]}</i>\n\n<b>Ингредиенты:</b>\n{row[1]}\n\n<b>Приготовление:</b>\n{row[2]}"
-        builder = InlineKeyboardBuilder()
-        btn_text = "💔 Убрать из избранного" if row[4] else "⭐ В избранное"
-        builder.button(text=btn_text, callback_data=f"fav:{rid}")
-        await callback.message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
-    await callback.answer()
-
-@router.callback_query(F.data.startswith("fav:"))
-async def toggle_fav(callback: types.CallbackQuery):
-    rid = int(callback.data.split(":")[1])
-    conn = sqlite3.connect("recipes.db")
-    c = conn.cursor()
-    c.execute("SELECT is_favorite FROM recipes WHERE id = ?", (rid,))
-    current = c.fetchone()[0]
-    new_val = 0 if current else 1
-    c.execute("UPDATE recipes SET is_favorite = ? WHERE id = ?", (new_val, rid))
-    conn.commit()
-    conn.close()
-    await callback.answer("Готово!")
-    await callback.message.edit_reply_markup(reply_markup=None)
-
-@router.message(F.text == "🎲 Случайный рецепт")
-async def random_recipe(message: types.Message):
-    conn = sqlite3.connect("recipes.db")
-    c = conn.cursor()
-    c.execute("SELECT name
+    conn = sqlite3.connect
