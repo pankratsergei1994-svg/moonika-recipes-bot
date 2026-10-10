@@ -51,9 +51,7 @@ def main_menu():
 @router.message(CommandStart())
 async def start(message: types.Message):
     await message.answer(
-        "Привет! 💕\n\n"
-        "Это общий бот с рецептами Мооники.\n"
-        "Вы оба можете добавлять блюда и смотреть их.",
+        "Привет! 💕\n\nЭто общий бот с рецептами Мооники.\nВы оба можете добавлять блюда и смотреть их.",
         reply_markup=main_menu()
     )
 
@@ -115,14 +113,10 @@ async def view_recipe(callback: types.CallbackQuery):
     conn.close()
     if row:
         fav = "⭐" if row[4] else ""
-        text = (
-            f"🍽 <b>{row[0]}</b> {fav}\n"
-            f"<i>Добавил(а): {row[3]}</i>\n\n"
-            f"<b>Ингредиенты:</b>\n{row[1]}\n\n"
-            f"<b>Приготовление:</b>\n{row[2]}"
-        )
+        text = f"🍽 <b>{row[0]}</b> {fav}\n<i>Добавил(а): {row[3]}</i>\n\n<b>Ингредиенты:</b>\n{row[1]}\n\n<b>Приготовление:</b>\n{row[2]}"
         builder = InlineKeyboardBuilder()
-        builder.button(text="⭐ В избранное" if not row[4] else "💔 Убрать из избранного", callback_data=f"fav:{rid}")
+        btn_text = "💔 Убрать из избранного" if row[4] else "⭐ В избранное"
+        builder.button(text=btn_text, callback_data=f"fav:{rid}")
         await callback.message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
     await callback.answer()
 
@@ -144,8 +138,4 @@ async def toggle_fav(callback: types.CallbackQuery):
 async def random_recipe(message: types.Message):
     conn = sqlite3.connect("recipes.db")
     c = conn.cursor()
-    c.execute("SELECT name, ingredients, steps FROM recipes ORDER BY RANDOM() LIMIT 1")
-    row = c.fetchone()
-    conn.close()
-    if row:
-        text = f"🎲 <b>{row[0]}</b>\n\n<b>Ингредиенты:</b>\n{row[1]}\n\n<b>
+    c.execute("SELECT name
