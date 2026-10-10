@@ -1,3 +1,6 @@
+print("=== BOT STARTED ===")
+import os
+print("TOKEN EXISTS:", bool(os.getenv("BOT_TOKEN")))
 import os
 import logging
 import sqlite3
