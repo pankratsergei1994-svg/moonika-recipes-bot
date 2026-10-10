@@ -221,7 +221,7 @@ async def search_do(message: types.Message, state: FSMContext):
     q = f"%{message.text}%"
     conn = sqlite3.connect("recipes.db")
     c = conn.cursor()
-    c.execute("SELECT id, name FROM recipes WHERE name LIKE ?", (q,))
+    c.execute("SELECT id, name FROM recipes WHERE name LIKE ? OR ingredients LIKE ?", (q, q))
     rows = c.fetchall()
     conn.close()
     await state.clear()
