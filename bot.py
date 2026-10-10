@@ -26,7 +26,8 @@ def init_db():
         name TEXT NOT NULL,
         ingredients TEXT,
         steps TEXT,
-        added_by TEXT
+        added_by TEXT,
+        is_favorite INTEGER DEFAULT 0
     )""")
     conn.commit()
     conn.close()
@@ -41,45 +42,54 @@ class AddRecipe(StatesGroup):
 def main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="Add"), KeyboardButton(text="List")],
-            [KeyboardButton(text="Random")],
-        ], resize_keyboard=True)
+            [KeyboardButton(text="➕ Добавить рецепт"), KeyboardButton(text="📋 Все рецепты")],
+            [KeyboardButton(text="🎲 Случайный рецепт"), KeyboardButton(text="⭐ Избранное")],
+        ],
+        resize_keyboard=True
+    )
 
 @router.message(CommandStart())
 async def start(message: types.Message):
-    await message.answer("Hi! Shared recipes bot", reply_markup=main_menu())
+    await message.answer(
+        "Привет! 💕\n\n"
+        "Это общий бот с рецептами Мооники.\n"
+        "Вы оба можете добавлять блюда и смотреть их.",
+        reply_markup=main_menu()
+    )
 
-@router.message(F.text == "Add")
+@router.message(F.text == "➕ Добавить рецепт")
 async def add_start(message: types.Message, state: FSMContext):
     await state.set_state(AddRecipe.name)
-    await message.answer("Name of recipe:")
+    await message.answer("Введи название рецепта:")
 
 @router.message(AddRecipe.name)
 async def add_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text)
     await state.set_state(AddRecipe.ingredients)
-    await message.answer("Ingredients:")
+    await message.answer("Теперь напиши ингредиенты:")
 
 @router.message(AddRecipe.ingredients)
 async def add_ing(message: types.Message, state: FSMContext):
     await state.update_data(ingredients=message.text)
     await state.set_state(AddRecipe.steps)
-    await message.answer("Steps:")
+    await message.answer("Опиши шаги приготовления:")
 
 @router.message(AddRecipe.steps)
 async def add_steps(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    added_by = message.from_user.first_name or "User"
+    added_by = message.from_user.first_name or "Кто-то"
     conn = sqlite3.connect("recipes.db")
     c = conn.cursor()
-    c.execute("INSERT INTO recipes (name, ingredients, steps, added_by) VALUES (?, ?, ?, ?)",
-              (data["name"], data["ingredients"], message.text, added_by))
+    c.execute(
+        "INSERT INTO recipes (name, ingredients, steps, added_by) VALUES (?, ?, ?, ?)",
+        (data["name"], data["ingredients"], message.text, added_by)
+    )
     conn.commit()
     conn.close()
     await state.clear()
-    await message.answer("Saved!", reply_markup=main_menu())
+    await message.answer("✅ Рецепт сохранён!", reply_markup=main_menu())
 
-@router.message(F.text == "List")
+@router.message(F.text == "📋 Все рецепты")
 async def list_recipes(message: types.Message):
     conn = sqlite3.connect("recipes.db")
     c = conn.cursor()
@@ -87,28 +97,50 @@ async def list_recipes(message: types.Message):
     rows = c.fetchall()
     conn.close()
     if not rows:
-        await message.answer("Empty")
+        await message.answer("Пока нет рецептов. Добавь первый!")
         return
     builder = InlineKeyboardBuilder()
     for rid, name in rows:
         builder.button(text=name, callback_data=f"view:{rid}")
     builder.adjust(1)
-    await message.answer("Recipes:", reply_markup=builder.as_markup())
+    await message.answer("Все рецепты:", reply_markup=builder.as_markup())
 
 @router.callback_query(F.data.startswith("view:"))
 async def view_recipe(callback: types.CallbackQuery):
     rid = int(callback.data.split(":")[1])
     conn = sqlite3.connect("recipes.db")
     c = conn.cursor()
-    c.execute("SELECT name, ingredients, steps, added_by FROM recipes WHERE id = ?", (rid,))
+    c.execute("SELECT name, ingredients, steps, added_by, is_favorite FROM recipes WHERE id = ?", (rid,))
     row = c.fetchone()
     conn.close()
     if row:
-        text = f"<b>{row[0]}</b>\nBy: {row[3]}\n\nIngredients:\n{row[1]}\n\nSteps:\n{row[2]}"
-        await callback.message.answer(text, parse_mode="HTML")
+        fav = "⭐" if row[4] else ""
+        text = (
+            f"🍽 <b>{row[0]}</b> {fav}\n"
+            f"<i>Добавил(а): {row[3]}</i>\n\n"
+            f"<b>Ингредиенты:</b>\n{row[1]}\n\n"
+            f"<b>Приготовление:</b>\n{row[2]}"
+        )
+        builder = InlineKeyboardBuilder()
+        builder.button(text="⭐ В избранное" if not row[4] else "💔 Убрать из избранного", callback_data=f"fav:{rid}")
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=builder.as_markup())
     await callback.answer()
 
-@router.message(F.text == "Random")
+@router.callback_query(F.data.startswith("fav:"))
+async def toggle_fav(callback: types.CallbackQuery):
+    rid = int(callback.data.split(":")[1])
+    conn = sqlite3.connect("recipes.db")
+    c = conn.cursor()
+    c.execute("SELECT is_favorite FROM recipes WHERE id = ?", (rid,))
+    current = c.fetchone()[0]
+    new_val = 0 if current else 1
+    c.execute("UPDATE recipes SET is_favorite = ? WHERE id = ?", (new_val, rid))
+    conn.commit()
+    conn.close()
+    await callback.answer("Готово!")
+    await callback.message.edit_reply_markup(reply_markup=None)
+
+@router.message(F.text == "🎲 Случайный рецепт")
 async def random_recipe(message: types.Message):
     conn = sqlite3.connect("recipes.db")
     c = conn.cursor()
@@ -116,13 +148,4 @@ async def random_recipe(message: types.Message):
     row = c.fetchone()
     conn.close()
     if row:
-        await message.answer(f"<b>{row[0]}</b>\n\n{row[1]}\n\n{row[2]}", parse_mode="HTML")
-    else:
-        await message.answer("No recipes")
-
-async def main():
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+        text = f"🎲 <b>{row[0]}</b>\n\n<b>Ингредиенты:</b>\n{row[1]}\n\n<b>
