@@ -15,7 +15,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
-bot = Bot(token=BOT_TOKEN)
+print("Creating bot...") bot = Bot(token=BOT_TOKEN) print("Bot created")
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
